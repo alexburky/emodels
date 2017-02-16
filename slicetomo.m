@@ -1,10 +1,11 @@
 %% Mantle Tomography Model
-
+%
 %---------------------------------------------------------------
 % This script plots the mantle tomography model                 |
 % SL2013NA                                                      |
-%                                                               |                                                               |
-% Last updated 1/25/2017 by aburky@princeton.edu                |
+%                                                               |
+% Last updated 2/16/2017 by aburky@princeton.edu                |
+% Last updated 2/16/2017 by fjsimons@princeton.edu              |
 %---------------------------------------------------------------
 
 % Extract the model information for a cross section
