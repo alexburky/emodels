@@ -8,15 +8,22 @@
 % Last updated 2/16/2017 by fjsimons@princeton.edu              |
 %---------------------------------------------------------------
 
-% Extract the model information for a cross section
-% between two (lat,lon) points
-format long g
-degrees = load('coords.txt');
-absVs=load('absVs.txt');
-depth=load('dep.txt');
+% Where is the model? User will change
+filepath='/u/fjsimons/IFILES/EARTHMODELS/SL2013NA_tri-grd_v1.0';
+% Find the coordinates of the cross section stored as, e.g.
+% 279.6397 38.1226
+% 288.0000 35.6272
+degrees=load(fullfile(filepath,'slices','coords.txt'));
+% Find the absolute values of the velocity below the coords...
+absVs=load(fullfile(filepath,'slices','absVs.txt'));
+% ... at the depths:
+depth=load(fullfile(filepath,'slices','dep.txt'));
+
+% FJS cleanup above here
+
 start=[degrees(1,1) degrees(1,2)];
 finish=[degrees(8,1) degrees(8,2)];
-
+format long g
 
 %% Compute 1-D velocity average for the model region
  
