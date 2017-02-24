@@ -1,3 +1,4 @@
+function slicetomo(method)
 %% Mantle Tomography Model
 %
 %---------------------------------------------------------------
@@ -8,13 +9,17 @@
 % Last updated 2/16/2017 by fjsimons@princeton.edu              |
 %---------------------------------------------------------------
 
+method=2;
+
 % Where is the model? User will change
 filepath='/home/aburky/work/bermuda/mantleModels/SL2013NA_tri-grd_v1.0';
+filepath='/u/fjsimons/IFILES/EARTHMODELS/SL2013NA_tri-grd_v1.0';
 
 % Load the model into the variable, model
-model=dlmread('SL2013NA_n-k.mod','',1,0);
+model=dlmread(fullfile(filepath,'SL2013NA_n-k.mod'),'',1,0);
 
 % Create scattered interpolant of model
+% Where you HAVE the emodel
 % x values (longitudes, deg)
 x=model(:,2);
 % y values (latitudes, deg)
@@ -22,11 +27,11 @@ y=model(:,3);
 % z values (depths, km)
 z=model(:,1);
 % vs values (m/s)
-vs=model(:,7);
+v=model(:,7);
 
 % Create interpolant so model values can be found for any (lat,lon)
 % in the domain, also convert Vs to km/s
-Vs=scatteredInterpolant(x,y,z,(vs/1000));
+vi=scatteredInterpolant(x,y,z,(v/1000));
 
 %% Choose the starting and end points of the cross section
 % (in degrees)
@@ -35,44 +40,59 @@ lon1=280;
 lat2=28;
 lon2=302;
 
-% Choose number of (lat,lon) points and number of depth points
-nxy=1000;
-nz=1000;
+% Calculate the arc length of the cross section
+[gcdkm,delta]=grcdist([lon1 lat1],[lon2 lat2]);
 
+% Choose number of (lat,lon) points and number of depth points
+mp=100;
+nxy=mp*round(gcdkm/280);
+nz=mp*length(unique(z));
+
+% Compute SPHERICAL great-circle path points
 [lat, lon]=track2(lat1,lon1,lat2,lon2,'','degrees',nxy);
 lon=lon+360;
 
-% By default the depth ranges from 20 to 585 km
-% this should not be changed since the model is only valid in
-% this domain
-dep=linspace(20,585,nz);
+% Compute depth points
+dep=linspace(min(z),max(z),nz);
 
 %% Construct a grid of model values
 % Rows correspond to fixed depths
 % Columns correspond to fixed (lat,lon)
 
 % Pre-allocate matrix of absolute Vs
-absVs=zeros(nz,nxy);
+absvi=nan(nz,nxy);
 
-for i=1:nz
+switch method
+ case 1 
+  tic
+  for i=1:nz
     for j=1:nxy
-        absVs(i,j)=Vs(lon(j),lat(j),dep(i));
+      absvi(i,j)=vi(lon(j),lat(j),dep(i));
     end
+  end
+  toc
+ case 2
+  tic
+  LON=repmat(lon(:),nz,1);
+  LAT=repmat(lat(:),nz,1);
+  DEP=repmat(dep(:)',length(lon),1);
+  aabsvi=reshape(vi(LON(:),LAT(:),DEP(:)),length(lon),[])';
+  toc
 end
 
 %% Compute 1-D velocity average for the model region
  
 % Pre-allocate variables
-meanVs=zeros(1,nz);
-delVs=zeros(nz,nxy);
+meanvi=zeros(1,nz);
+delvi=zeros(nz,nxy);
 
 % Construct array of averages for each depth slice
 for i = 1:nz
-    meanVs(i) = mean(absVs(i,:));
+    meanvi(i) = mean(absvi(i,:));
 end
 % Replace absolute velocities with relative velocities
 for i = 1:nz
-    delVs(i,:) = ((absVs(i,:)-meanVs(i))./meanVs(i))*100;
+    delvi(i,:) = ((absvi(i,:)-meanvi(i))./meanvi(i))*100;
 end
 
 %% Make coordinates for plotting
@@ -92,19 +112,19 @@ for ir = 1:nz;
 end
 
 % Rotate the velocity grid to give it the right sense (relative)
-% flipVs=transpose(delVs);
-rotVs=rot90(delVs,1);
-flipVs=transpose(rotVs);
+% flipvi=transpose(delvi);
+rotvi=rot90(delvi,1);
+flipvi=transpose(rotvi);
 
 %% Make the tomographic cross section plot
 % Load the color palette
 load('kelim.mat');
 
 % Make the cross section plot
-pcolor(x,y,flipVs)
+pcolor(x,y,flipvi)
 shading interp
 hold on
-[C,H]=contour(x,y,flipVs,7,'k');
+[C,H]=contour(x,y,flipvi,7,'k');
 set(H,'linewidth',0.01)
 ttl=title('SL2013NA Upper Mantle Cross-Section');
 P=get(ttl,'Position');
@@ -237,7 +257,7 @@ hold off;
 %% Make plot of 1-D Velocity Model
 
 figure('Position',[100, 100, 300, 600]);
-plot(meanVs,dep)
+plot(meanvi,dep)
 set(gca,'XAxisLocation','top','ydir','reverse')
 xlabel('Regional Average V_{S} (km/s)')
 ylabel('Depth (km)')
