@@ -9,49 +9,83 @@
 %---------------------------------------------------------------
 
 % Where is the model? User will change
-filepath='/u/fjsimons/IFILES/EARTHMODELS/SL2013NA_tri-grd_v1.0';
-% Find the coordinates of the cross section stored as, e.g.
-% 279.6397 38.1226
-% 288.0000 35.6272
-degrees=load(fullfile(filepath,'slices','coords.txt'));
-% Find the absolute values of the velocity below the coords...
-absVs=load(fullfile(filepath,'slices','absVs.txt'));
-% ... at the depths:
-depth=load(fullfile(filepath,'slices','dep.txt'));
+filepath='/home/aburky/work/bermuda/mantleModels/SL2013NA_tri-grd_v1.0';
 
-% FJS cleanup above here
+% Load the model into the variable, model
+model=dlmread('SL2013NA_n-k.mod','',1,0);
 
-start=[degrees(1,1) degrees(1,2)];
-finish=[degrees(8,1) degrees(8,2)];
-format long g
+% Create scattered interpolant of model
+% x values (longitudes, deg)
+x=model(:,2);
+% y values (latitudes, deg)
+y=model(:,3);
+% z values (depths, km)
+z=model(:,1);
+% vs values (m/s)
+vs=model(:,7);
+
+% Create interpolant so model values can be found for any (lat,lon)
+% in the domain, also convert Vs to km/s
+Vs=scatteredInterpolant(x,y,z,(vs/1000));
+
+%% Choose the starting and end points of the cross section
+% (in degrees)
+lat1=39;
+lon1=280;
+lat2=28;
+lon2=302;
+
+% Choose number of (lat,lon) points and number of depth points
+nxy=1000;
+nz=1000;
+
+[lat, lon]=track2(lat1,lon1,lat2,lon2,'','degrees',nxy);
+lon=lon+360;
+
+% By default the depth ranges from 20 to 585 km
+% this should not be changed since the model is only valid in
+% this domain
+dep=linspace(20,585,nz);
+
+%% Construct a grid of model values
+% Rows correspond to fixed depths
+% Columns correspond to fixed (lat,lon)
+
+% Pre-allocate matrix of absolute Vs
+absVs=zeros(nz,nxy);
+
+for i=1:nz
+    for j=1:nxy
+        absVs(i,j)=Vs(lon(j),lat(j),dep(i));
+    end
+end
 
 %% Compute 1-D velocity average for the model region
  
 % Pre-allocate variables
-meanVs=zeros(1,13);
-delVs=zeros(13,8);
+meanVs=zeros(1,nz);
+delVs=zeros(nz,nxy);
 
 % Construct array of averages for each depth slice
-for i = 1:13
+for i = 1:nz
     meanVs(i) = mean(absVs(i,:));
 end
 % Replace absolute velocities with relative velocities
-for i = 1:13
+for i = 1:nz
     delVs(i,:) = ((absVs(i,:)-meanVs(i))./meanVs(i))*100;
 end
 
 %% Make coordinates for plotting
-arclen=distance('gc',[start(2),start(1)],[finish(2),finish(1)]);
-xdist=linspace(0,arclen,8);
-dep=6371-depth;
-x = zeros(13,8);
-y= zeros(13,8);
+arclen=distance('gc',[lat1,lon1],[lat2,lon2]);
+depth=6371-dep;
+x = zeros(nz,nxy);
+y= zeros(nz,nxy);
 
 % Convert polar coordinates to cartesian values
-for ir = 1:13;
-    for ith = 1:8;
-        r = dep(ir);
-        th = ((pi/2)-((arclen/2)*(pi/180)))+(ith-1)*((arclen/7)*(pi/180));
+for ir = 1:nz;
+    for ith = 1:nxy;
+        r = depth(ir);
+        th = ((pi/2)-((arclen/2)*(pi/180)))+(ith-1)*((arclen/(nxy-1))*(pi/180));
         x(ir,ith) = r*cos(th);
         y(ir,ith) = r*sin(th);
     end
@@ -140,7 +174,7 @@ y410=zeros(1,2000);
 % Right boundary
 ith=1;
 for ir = 1:2000
-    r = 5786+(ir-1)*(585/1999);
+    r = min(depth)+(ir-1)*((6371-min(depth))/1999);
     th = ((pi/2)-((arclen/2)*(pi/180)))+(ith-1)*((arclen/1999)*(pi/180));
     xr(ir,ith) = r*cos(th);
     yr(ir,ith) = r*sin(th);
@@ -149,7 +183,7 @@ plot(xr,yr,'k');
 
 % Left boundary
 for ir = 1:2000
-    r = 5786+(ir-1)*(585/1999);
+    r = min(depth)+(ir-1)*((6371-min(depth))/1999);
     th = ((pi/2)+((arclen/2)*(pi/180)))+(ith-1)*((arclen/1999)*(pi/180));
     xl(ir,ith) = r*cos(th);
     yl(ir,ith) = r*sin(th);
@@ -159,7 +193,7 @@ plot(xl,yl,'k');
 % Bottom boundary
 for ir = 1;
     for ith = 1:2000
-        r = 5786;
+        r = min(depth);
         th = ((pi/2)-((arclen/2)*(pi/180)))+(ith-1)*((arclen/1999)*(pi/180));
         xb(ir,ith) = r*cos(th);
         yb(ir,ith) = r*sin(th);
@@ -203,7 +237,7 @@ hold off;
 %% Make plot of 1-D Velocity Model
 
 figure('Position',[100, 100, 300, 600]);
-plot(meanVs,6371-dep)
+plot(meanVs,dep)
 set(gca,'XAxisLocation','top','ydir','reverse')
 xlabel('Regional Average V_{S} (km/s)')
 ylabel('Depth (km)')
